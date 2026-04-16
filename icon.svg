@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 白地図背景 -->
+  <rect width="512" height="512" fill="#f7f5f0"/>
+
+  <!-- クロス型の訪問済みメッシュ（サーモンピンク） -->
+  <path d="M150,0 L315,0 L315,135 L480,135 L480,270 L315,270 L315,405 L0,405 L0,135 L150,135 Z"
+        fill="#e74c3c" opacity="0.38"/>
+
+  <!-- MY MESH MAP テキスト（3行） -->
+  <text text-anchor="middle" font-family="sans-serif" font-weight="bold" fill="#2c3e50">
+    <tspan x="256" dy="140"  font-size="100">MY</tspan>
+    <tspan x="256" dy="140"  font-size="100">MESH</tspan>
+    <tspan x="256" dy="140"  font-size="100">MAP</tspan>
+  </text>
+</svg>
