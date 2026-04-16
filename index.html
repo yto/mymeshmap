@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyMeshMap Japan</title>
+  <link href="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+
+    #modal {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 230px;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
+      user-select: none;
+      z-index: 1000;
+    }
+
+    #modal-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 12px;
+      background: #2c3e50;
+      color: #fff;
+      border-radius: 8px 8px 0 0;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: move;
+    }
+
+    #modal-header .drag-icon {
+      opacity: 0.6;
+      font-size: 11px;
+      letter-spacing: -1px;
+    }
+
+    #modal-body {
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 2;
+      color: #333;
+    }
+
+    #modal-body .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #modal-body .label {
+      color: #666;
+    }
+
+    #modal-body .value {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    #mesh-status {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: normal;
+    }
+
+    #mesh-status.on {
+      background: #e8f5e9;
+      color: #388e3c;
+    }
+
+    #mesh-status.off {
+      background: #fce4ec;
+      color: #c62828;
+    }
+
+    #cap-warning {
+      font-size: 11px;
+      color: #e65100;
+      display: none;
+      margin-top: 2px;
+    }
+
+    .toggle-btn {
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .toggle-btn.on {
+      background: #2c3e50;
+      color: #fff;
+      border-color: #2c3e50;
+    }
+
+    .toggle-btn.off {
+      background: #f5f5f5;
+      color: #999;
+    }
+
+    #map-mode {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 5px 2px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #f5f5f5;
+      color: #555;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: inherit;
+      transition: background 0.12s, color 0.12s;
+      white-space: nowrap;
+    }
+
+    .mode-btn.active {
+      background: #2c3e50;
+      color: #fff;
+      border-color: #2c3e50;
+    }
+
+    .mode-btn:hover:not(.active) {
+      background: #e0e0e0;
+    }
+
+    .modal-divider {
+      border: none;
+      border-top: 1px solid #eee;
+      margin: 4px 0;
+    }
+
+    /* ---- ヘッダー内の同期ドットとユーザーボタン ---- */
+    #sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    #sync-dot.sync-idle    { background: #aaa; }
+    #sync-dot.sync-loading { background: #5dade2; animation: blink 1s infinite; }
+    #sync-dot.sync-ok      { background: #58d68d; }
+    #sync-dot.sync-error   { background: #ec7063; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    #open-user-modal {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.75);
+      cursor: pointer;
+      font-size: 15px;
+      padding: 0 0 0 4px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    #open-user-modal:hover { color: #fff; }
+
+    /* ---- ユーザー設定モーダル ---- */
+    #user-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #user-modal-overlay.hidden { display: none; }
+
+    #user-modal {
+      background: #fff;
+      border-radius: 10px;
+      width: 320px;
+      max-width: calc(100vw - 32px);
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+      font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+    }
+
+    #user-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #2c3e50;
+      color: #fff;
+      border-radius: 10px 10px 0 0;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    #user-modal-close {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.8);
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+    }
+    #user-modal-close:hover { color: #fff; }
+
+    #user-modal-body { padding: 16px; }
+
+    .um-section {
+      margin-bottom: 18px;
+    }
+
+    .um-section-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+    }
+
+    #um-id-box {
+      font-family: monospace;
+      font-size: 11px;
+      color: #333;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 6px 8px;
+      word-break: break-all;
+      margin-bottom: 6px;
+    }
+
+    .um-btn-row { display: flex; gap: 6px; }
+
+    .um-btn {
+      flex: 1;
+      padding: 6px 4px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #f5f5f5;
+      color: #444;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .um-btn:hover { background: #e8e8e8; }
+
+    .um-btn-primary {
+      width: 100%;
+      margin-top: 6px;
+      background: #2c3e50;
+      color: #fff;
+      border-color: #2c3e50;
+    }
+    .um-btn-primary:hover { background: #3d5166; }
+
+    #clear-btn { background: #c0392b; color: #fff; }
+    #clear-btn:hover:not(:disabled) { background: #e74c3c; }
+    #clear-btn:disabled { background: #ccc; cursor: default; }
+
+    #um-qr-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 8px 0;
+    }
+    #um-qr-canvas { border-radius: 4px; }
+
+    .um-hint {
+      font-size: 11px;
+      color: #999;
+      margin-top: 4px;
+    }
+    .um-warn { color: #e67e22; }
+
+    #um-import-input {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+      margin-top: 2px;
+    }
+    #um-import-input:focus { outline: 2px solid #2c3e50; border-color: transparent; }
+
+    #um-sync-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .sync-idle    { color: #aaa; }
+    .sync-loading { color: #1976d2; }
+    .sync-ok      { color: #388e3c; }
+    .sync-error   { color: #c62828; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="modal">
+  <div id="modal-header">
+    <span class="drag-icon">&#x2807;</span>
+    <span style="flex:1">MyMeshMap Japan</span>
+    <span id="sync-dot" class="sync-dot sync-idle" title="同期状態"></span>
+    <button id="open-user-modal" title="ユーザー設定">👤</button>
+  </div>
+  <div id="modal-body">
+    <div id="map-mode">
+      <button class="mode-btn active" data-mode="standard">カラー</button>
+      <button class="mode-btn" data-mode="grayscale">グレー</button>
+      <button class="mode-btn" data-mode="white">白地図</button>
+    </div>
+    <hr class="modal-divider">
+    <div class="row">
+      <span class="label">メッシュ線</span>
+      <button id="line-toggle" class="toggle-btn on">ON</button>
+    </div>
+    <div class="row">
+      <span class="label">訪問済み</span>
+      <span class="value"><span id="visited-count">0</span> メッシュ</span>
+    </div>
+    <div class="row">
+      <span class="label">ズーム</span>
+      <span class="value" id="zoom-value">—</span>
+    </div>
+    <div class="row">
+      <span class="label">メッシュ表示</span>
+      <span id="mesh-status" class="off">ズーム7以上で表示</span>
+    </div>
+    <div id="cap-warning">⚠ 表示上限(2000メッシュ)</div>
+  </div>
+</div>
+
+<!-- ユーザー設定モーダル -->
+<div id="user-modal-overlay" class="hidden">
+  <div id="user-modal">
+    <div id="user-modal-header">
+      <span>ユーザー設定</span>
+      <button id="user-modal-close">✕</button>
+    </div>
+    <div id="user-modal-body">
+
+      <div class="um-section">
+        <div class="um-section-title">あなたのID</div>
+        <div id="um-id-box">—</div>
+        <div class="um-btn-row">
+          <button class="um-btn" id="um-copy-id-btn">IDをコピー</button>
+          <button class="um-btn" id="um-reissue-btn">IDを再発行</button>
+          <button class="um-btn" id="um-copy-url-btn">URLをコピー</button>
+        </div>
+      </div>
+
+      <div class="um-section">
+        <div class="um-section-title">QRコード</div>
+        <div id="um-qr-wrap">
+          <div id="um-qr-container"></div>
+        </div>
+        <div class="um-hint">スマホで読み取ると同じIDで開けます</div>
+        <div class="um-hint um-warn">⚠ このQRコード・URLはパスワードと同じです。他人に見せないでください。</div>
+      </div>
+
+      <div class="um-section">
+        <div class="um-section-title">別デバイスから引き継ぐ</div>
+        <input id="um-import-input" type="text" placeholder="他のデバイスのIDを貼り付け…">
+        <button class="um-btn um-btn-primary" id="um-import-btn">このIDに切り替える</button>
+        <div class="um-hint um-warn">※ 現在のIDのデータは変更されません。切り替え後は新しいIDのデータを使います。</div>
+      </div>
+
+      <div class="um-section">
+        <div class="um-section-title">データ</div>
+        <button id="clear-btn" class="um-btn" style="width:100%;border:none;padding:9px;border-radius:4px;cursor:pointer;font-size:13px;font-family:inherit;transition:background 0.15s;" disabled>クリア（訪問済みをリセット）</button>
+      </div>
+
+      <div id="um-sync-row">
+        <span>同期状態</span>
+        <span id="um-sync-text" class="sync-idle">—</span>
+        <button class="um-btn" id="um-sync-btn" style="margin-left:8px;padding:3px 10px;font-size:12px;">今すぐ同期</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Constants ----
+const TILE_STD   = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
+const TILE_BLANK = 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png';
+const ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>';
+const MESH_MIN_ZOOM = 7;
+const MAX_MESHES = 2000;
+const LS_KEY = 'meshmap_visited';
+const LS_USER_ID = 'meshmap_user_id';
+
+// ---- User ID (UUID) ----
+function getOrCreateUserId() {
+  // URLパラメータ ?id=xxx があればそれを使う（QRコード経由の引き継ぎ）
+  const urlId = new URLSearchParams(window.location.search).get('id');
+  if (urlId) {
+    localStorage.setItem(LS_USER_ID, urlId);
+    history.replaceState(null, '', window.location.pathname);
+    return urlId;
+  }
+  let id = localStorage.getItem(LS_USER_ID);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(LS_USER_ID, id);
+  }
+  return id;
+}
+let userId = getOrCreateUserId();
+
+// ---- State ----
+const LS_SETTINGS = 'meshmap_settings';
+let visitedSet = new Set(JSON.parse(localStorage.getItem(LS_KEY) || '[]'));
+let showLines = true;
+let mapMode = 'standard';
+
+// localStorage から設定を先読み（マップ描画前にフラッシュしないよう）
+(function initSettingsFromLocalStorage() {
+  const saved = JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}');
+  if (saved.show_lines !== undefined) showLines = saved.show_lines;
+  if (saved.map_mode)                 mapMode   = saved.map_mode;
+})();
+
+// ---- Cloud sync ----
+function setSyncStatus(state, msg) {
+  // メインモーダルのドット
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot sync-' + state;
+  dot.title = msg;
+  // ユーザーモーダルのテキスト
+  const txt = document.getElementById('um-sync-text');
+  txt.className = 'sync-' + state;
+  txt.textContent = msg;
+}
+
+let saveTimer = null;
+
+async function loadFromCloud() {
+  setSyncStatus('loading', '読み込み中…');
+  try {
+    const res = await fetch(`/api/sync?user_id=${userId}`);
+    if (!res.ok) throw new Error(res.statusText);
+    const { meshes } = await res.json();
+    visitedSet = new Set(meshes);
+    localStorage.setItem(LS_KEY, JSON.stringify(meshes));
+    setSyncStatus('ok', '同期済み');
+    updateMeshes();
+    updateModal();
+  } catch {
+    setSyncStatus('error', '読み込みエラー');
+  }
+}
+
+async function saveToCloud() {
+  setSyncStatus('loading', '保存中…');
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, meshes: [...visitedSet] }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    setSyncStatus('ok', '同期済み');
+  } catch {
+    setSyncStatus('error', '保存エラー');
+  }
+}
+
+// ---- Settings sync ----
+async function loadSettings() {
+  try {
+    const res = await fetch(`/api/settings?user_id=${userId}`);
+    if (!res.ok) throw new Error();
+    const { settings } = await res.json();
+    if (settings.map_mode  !== undefined) mapMode   = settings.map_mode;
+    if (settings.show_lines !== undefined) showLines = settings.show_lines;
+    localStorage.setItem(LS_SETTINGS, JSON.stringify({ map_mode: mapMode, show_lines: showLines }));
+  } catch {
+    // クラウド失敗時は localStorage の値をそのまま使う
+  }
+  applySettings();
+}
+
+async function saveSettings() {
+  localStorage.setItem(LS_SETTINGS, JSON.stringify({ map_mode: mapMode, show_lines: showLines }));
+  try {
+    await Promise.all([
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, key: 'map_mode', value: mapMode }),
+      }),
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, key: 'show_lines', value: showLines }),
+      }),
+    ]);
+  } catch { /* サイレント失敗 */ }
+}
+
+function applySettings() {
+  // メッシュ線
+  const lineBtn = document.getElementById('line-toggle');
+  lineBtn.textContent = showLines ? 'ON' : 'OFF';
+  lineBtn.className = 'toggle-btn ' + (showLines ? 'on' : 'off');
+  map.setLayoutProperty('mesh-line', 'visibility', showLines ? 'visible' : 'none');
+  // マップモード
+  setMapMode(mapMode);
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mapMode);
+  });
+  updateModal();
+}
+
+// localStorage にすぐ書き、1秒後にクラウドへ保存
+function scheduleSave() {
+  localStorage.setItem(LS_KEY, JSON.stringify([...visitedSet]));
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToCloud, 1000);
+}
+
+// ---- MapLibre initialization ----
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      'gsi-std': {
+        type: 'raster',
+        tiles: [TILE_STD],
+        tileSize: 256,
+        attribution: ATTRIBUTION,
+        maxzoom: 18
+      },
+      'gsi-blank': {
+        type: 'raster',
+        tiles: [TILE_BLANK],
+        tileSize: 256,
+        attribution: ATTRIBUTION,
+        maxzoom: 18
+      }
+    },
+    layers: [
+      {
+        id: 'gsi-std-layer',
+        type: 'raster',
+        source: 'gsi-std',
+        paint: { 'raster-opacity': 1, 'raster-saturation': 0 }
+      },
+      {
+        id: 'gsi-blank-layer',
+        type: 'raster',
+        source: 'gsi-blank',
+        layout: { visibility: 'none' },
+        paint: { 'raster-opacity': 1 }
+      }
+    ]
+  },
+  center: [136.0, 36.5],
+  zoom: 5,
+  minZoom: 4,
+  maxZoom: 18
+});
+
+// ---- Mesh coordinate math (JIS X 0410) ----
+
+// lat/lng → 6-digit 2nd-level mesh code
+function latLngToMeshCode(lat, lng) {
+  const p = Math.floor(lat * 1.5);
+  const u = Math.floor(lng) - 100;
+  const r = Math.floor((lat - p / 1.5) * 12);
+  const c = Math.floor((lng - (u + 100)) * 8);
+  return (
+    p.toString().padStart(2, '0') +
+    u.toString().padStart(2, '0') +
+    r.toString() +
+    c.toString()
+  );
+}
+
+// 6-digit code → closed polygon ring (SW→SE→NE→NW→SW)
+function meshCodeToRing(code) {
+  const p = parseInt(code.slice(0, 2), 10);
+  const u = parseInt(code.slice(2, 4), 10);
+  const r = parseInt(code[4], 10);
+  const c = parseInt(code[5], 10);
+
+  const latSW = p / 1.5 + r / 12;
+  const lngSW = (u + 100) + c * 0.125;
+  const latNE = latSW + 1 / 12;
+  const lngNE = lngSW + 0.125;
+
+  return [
+    [lngSW, latSW],
+    [lngNE, latSW],
+    [lngNE, latNE],
+    [lngSW, latNE],
+    [lngSW, latSW]
+  ];
+}
+
+// Build a GeoJSON Feature for a mesh code
+function meshFeature(code) {
+  return {
+    type: 'Feature',
+    id: code,
+    properties: {
+      meshCode: code,
+      visited: visitedSet.has(code)
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [meshCodeToRing(code)]
+    }
+  };
+}
+
+// ---- Japan land area check (approximate bounding boxes per island group) ----
+const JAPAN_REGIONS = [
+  [33.4, 41.6, 130.2, 142.0], // 本州（Honshu）
+  [41.3, 45.6, 139.2, 145.8], // 北海道（Hokkaido）
+  [32.8, 34.3, 132.0, 134.9], // 四国（Shikoku）
+  [30.9, 34.0, 129.5, 132.3], // 九州（Kyushu）
+  [31.2, 33.9, 128.6, 130.5], // 対馬・五島列島
+  [24.0, 28.5, 122.8, 131.4], // 琉球・沖縄列島（Ryukyu/Okinawa）
+  [30.0, 34.7, 140.7, 142.5], // 伊豆諸島（Izu Islands）
+  [26.5, 27.2, 142.1, 142.6], // 小笠原諸島（Ogasawara）
+];
+
+// メッシュの中心点が日本の領域内かどうかを判定
+function isInJapan(lat, lng) {
+  return JAPAN_REGIONS.some(([s, n, w, e]) => lat >= s && lat <= n && lng >= w && lng <= e);
+}
+
+// ---- Mesh generation from viewport ----
+let capHit = false;
+
+function updateMeshes() {
+  const zoom = map.getZoom();
+  updateModal(zoom);
+
+  if (zoom < MESH_MIN_ZOOM) {
+    // 線は非表示だが、訪問済みメッシュの塗り色は常に表示する
+    const features = [...visitedSet].map(code => meshFeature(code));
+    map.getSource('mesh-source').setData({ type: 'FeatureCollection', features });
+    document.getElementById('cap-warning').style.display = 'none';
+    return;
+  }
+
+  const bounds = map.getBounds();
+  // Clamp to Japan extent
+  const S = Math.max(bounds.getSouth(), 20);
+  const N = Math.min(bounds.getNorth(), 46);
+  const W = Math.max(bounds.getWest(),  122);
+  const E = Math.min(bounds.getEast(),  154);
+
+  if (S >= N || W >= E) {
+    map.getSource('mesh-source').setData({ type: 'FeatureCollection', features: [] });
+    return;
+  }
+
+  const pMin = Math.floor(S * 1.5);
+  const pMax = Math.floor(N * 1.5);
+  const uMin = Math.floor(W) - 100;
+  const uMax = Math.floor(E) - 100;
+
+  const features = [];
+  capHit = false;
+
+  outer:
+  for (let p = pMin; p <= pMax; p++) {
+    for (let u = uMin; u <= uMax; u++) {
+      for (let r = 0; r <= 7; r++) {
+        for (let c = 0; c <= 7; c++) {
+          const latSW = p / 1.5 + r / 12;
+          const lngSW = (u + 100) + c * 0.125;
+
+          // Skip if cell is entirely outside viewport
+          if (latSW + 1 / 12 < S || latSW > N) continue;
+          if (lngSW + 0.125 < W || lngSW > E) continue;
+
+          const code =
+            p.toString().padStart(2, '0') +
+            u.toString().padStart(2, '0') +
+            r.toString() +
+            c.toString();
+
+          features.push(meshFeature(code));
+
+          if (features.length >= MAX_MESHES) {
+            capHit = true;
+            break outer;
+          }
+        }
+      }
+    }
+  }
+
+  map.getSource('mesh-source').setData({
+    type: 'FeatureCollection',
+    features
+  });
+
+  document.getElementById('cap-warning').style.display = capHit ? 'block' : 'none';
+}
+
+// ---- Modal update ----
+function updateModal(zoom) {
+  const z = zoom !== undefined ? zoom : map.getZoom();
+  document.getElementById('visited-count').textContent = visitedSet.size;
+  document.getElementById('zoom-value').textContent = z.toFixed(1);
+
+  const statusEl = document.getElementById('mesh-status');
+  if (!showLines) {
+    statusEl.textContent = '線OFF';
+    statusEl.className = 'off';
+  } else if (z >= MESH_MIN_ZOOM) {
+    statusEl.textContent = '表示中';
+    statusEl.className = 'on';
+  } else {
+    statusEl.textContent = 'ズーム7以上で表示';
+    statusEl.className = 'off';
+  }
+
+  document.getElementById('clear-btn').disabled = visitedSet.size === 0;
+}
+
+// ---- Map setup on load ----
+map.on('load', () => {
+  map.addSource('mesh-source', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  });
+
+  // Fill layer: visited = red semi-transparent, unvisited = transparent
+  map.addLayer({
+    id: 'mesh-fill',
+    type: 'fill',
+    source: 'mesh-source',
+    paint: {
+      'fill-color': [
+        'case',
+        ['get', 'visited'],
+        'rgba(220, 50, 50, 0.35)',
+        'rgba(0, 0, 0, 0)'
+      ],
+      'fill-outline-color': 'rgba(0, 0, 0, 0)'
+    }
+  });
+
+  // Line layer: 1px screen-space, ズーム7以上のみ表示
+  map.addLayer({
+    id: 'mesh-line',
+    type: 'line',
+    source: 'mesh-source',
+    paint: {
+      'line-color': '#b0b8c0',
+      'line-width': 1,
+      'line-opacity': ['step', ['zoom'], 0, 7, 1]
+    }
+  });
+
+  map.on('moveend', updateMeshes);
+  map.on('zoomend', updateMeshes);
+
+  // Click to toggle visited
+  map.on('click', 'mesh-fill', (e) => {
+    if (!e.features || e.features.length === 0) return;
+    const code = e.features[0].properties.meshCode;
+
+    // メッシュ中心点が日本領域外の場合は無視
+    const p = parseInt(code.slice(0, 2), 10);
+    const u = parseInt(code.slice(2, 4), 10);
+    const r = parseInt(code[4], 10);
+    const c = parseInt(code[5], 10);
+    const centerLat = p / 1.5 + r / 12 + 1 / 24;
+    const centerLng = (u + 100) + c * 0.125 + 0.0625;
+    if (!isInJapan(centerLat, centerLng)) return;
+
+    if (visitedSet.has(code)) {
+      visitedSet.delete(code);
+    } else {
+      visitedSet.add(code);
+    }
+
+    scheduleSave();
+    updateMeshes();
+  });
+
+  // Cursor feedback
+  map.on('mouseenter', 'mesh-fill', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'mesh-fill', () => {
+    map.getCanvas().style.cursor = '';
+  });
+
+  updateMeshes();
+  updateModal();
+
+  // クラウドからデータと設定を読み込む
+  loadFromCloud();
+  loadSettings();
+});
+
+// Zoom indicator update during zoom (not just on zoomend)
+map.on('zoom', () => {
+  document.getElementById('zoom-value').textContent = map.getZoom().toFixed(1);
+});
+
+// ---- Mesh line toggle ----
+document.getElementById('line-toggle').addEventListener('click', () => {
+  showLines = !showLines;
+  const btn = document.getElementById('line-toggle');
+  btn.textContent = showLines ? 'ON' : 'OFF';
+  btn.className = 'toggle-btn ' + (showLines ? 'on' : 'off');
+  map.setLayoutProperty('mesh-line', 'visibility', showLines ? 'visible' : 'none');
+  updateModal();
+  saveSettings();
+});
+
+// ---- Map mode switcher ----
+function setMapMode(mode) {
+  if (mode === 'white') {
+    map.setLayoutProperty('gsi-std-layer',   'visibility', 'none');
+    map.setLayoutProperty('gsi-blank-layer', 'visibility', 'visible');
+  } else {
+    map.setLayoutProperty('gsi-std-layer',   'visibility', 'visible');
+    map.setLayoutProperty('gsi-blank-layer', 'visibility', 'none');
+    map.setPaintProperty('gsi-std-layer', 'raster-saturation', mode === 'grayscale' ? -1 : 0);
+  }
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mapMode = btn.dataset.mode;
+    setMapMode(mapMode);
+    saveSettings();
+  });
+});
+
+// ---- Clear button ----
+document.getElementById('clear-btn').addEventListener('click', () => {
+  if (!confirm('訪問済みメッシュをすべてクリアしますか？')) return;
+  visitedSet.clear();
+  scheduleSave();
+  updateMeshes();
+  updateModal();
+});
+
+// ---- ユーザー設定モーダル ----
+let qrGenerated = false;
+
+function getShareUrl() {
+  return `${location.origin}${location.pathname}?id=${userId}`;
+}
+
+function openUserModal() {
+  document.getElementById('um-id-box').textContent = userId;
+  document.getElementById('user-modal-overlay').classList.remove('hidden');
+  // QRコードは初回表示時のみ生成
+  if (!qrGenerated) {
+    new QRCode(document.getElementById('um-qr-container'), {
+      text: getShareUrl(),
+      width: 200,
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    qrGenerated = true;
+  }
+}
+
+function closeUserModal() {
+  document.getElementById('user-modal-overlay').classList.add('hidden');
+}
+
+document.getElementById('open-user-modal').addEventListener('click', openUserModal);
+document.getElementById('user-modal-close').addEventListener('click', closeUserModal);
+document.getElementById('user-modal-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('user-modal-overlay')) closeUserModal();
+});
+
+// IDコピー
+document.getElementById('um-copy-id-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText(userId).then(() => {
+    const btn = document.getElementById('um-copy-id-btn');
+    btn.textContent = '✓ コピーしました';
+    setTimeout(() => { btn.textContent = 'IDをコピー'; }, 1800);
+  });
+});
+
+// URLコピー
+document.getElementById('um-copy-url-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText(getShareUrl()).then(() => {
+    const btn = document.getElementById('um-copy-url-btn');
+    btn.textContent = '✓ コピーしました';
+    setTimeout(() => { btn.textContent = 'URLをコピー'; }, 1800);
+  });
+});
+
+// 別IDへの切り替え
+document.getElementById('um-import-btn').addEventListener('click', async () => {
+  const input = document.getElementById('um-import-input').value.trim();
+  if (!input) return;
+  // 簡易バリデーション（UUID形式）
+  if (!/^[0-9a-f-]{36}$/i.test(input)) {
+    alert('IDの形式が正しくありません。');
+    return;
+  }
+  if (!confirm(`ID を切り替えます。\n\n${input}\n\nよろしいですか？`)) return;
+
+  userId = input;
+  localStorage.setItem(LS_USER_ID, userId);
+  document.getElementById('um-id-box').textContent = userId;
+  document.getElementById('um-import-input').value = '';
+
+  // QRコードを再生成
+  const qrContainer = document.getElementById('um-qr-container');
+  qrContainer.innerHTML = '';
+  new QRCode(qrContainer, {
+    text: getShareUrl(),
+    width: 200, height: 200,
+    colorDark: '#000000', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  qrGenerated = true;
+
+  closeUserModal();
+  await loadFromCloud();
+});
+
+// ID再発行
+document.getElementById('um-reissue-btn').addEventListener('click', async () => {
+  if (!confirm('IDを再発行します。\n\n現在のデータは新しいIDに引き継がれ、古いIDは使えなくなります。\n\nよろしいですか？')) return;
+
+  // 保留中の自動保存をキャンセル
+  clearTimeout(saveTimer);
+
+  const oldId = userId;
+  const newId = crypto.randomUUID();
+
+  const btn = document.getElementById('um-reissue-btn');
+  btn.disabled = true;
+  btn.textContent = '処理中…';
+
+  try {
+    const res = await fetch('/api/reissue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_user_id: oldId, new_user_id: newId }),
+    });
+    if (!res.ok) throw new Error('サーバーエラー');
+
+    // ローカルのIDを更新
+    userId = newId;
+    localStorage.setItem(LS_USER_ID, userId);
+    document.getElementById('um-id-box').textContent = userId;
+
+    // QRコードを再生成
+    const qrContainer = document.getElementById('um-qr-container');
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+      text: getShareUrl(),
+      width: 200, height: 200,
+      colorDark: '#000000', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    qrGenerated = true;
+
+    // 新IDのデータをクラウドから確認読み込み
+    await loadFromCloud();
+  } catch (e) {
+    alert('再発行に失敗しました。もう一度お試しください。');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'IDを再発行';
+  }
+});
+
+// 手動同期
+document.getElementById('um-sync-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('um-sync-btn');
+  btn.disabled = true;
+  await Promise.all([loadFromCloud(), loadSettings()]);
+  btn.disabled = false;
+});
+
+// ---- Draggable modal ----
+(function initDraggable() {
+  const modal = document.getElementById('modal');
+  const header = document.getElementById('modal-header');
+  let dragging = false;
+  let offsetX = 0, offsetY = 0;
+
+  header.addEventListener('mousedown', (e) => {
+    dragging = true;
+
+    // Convert from bottom/right anchoring to top/left before first drag
+    const rect = modal.getBoundingClientRect();
+    modal.style.bottom = 'auto';
+    modal.style.right = 'auto';
+    modal.style.left = rect.left + 'px';
+    modal.style.top = rect.top + 'px';
+
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+
+    const maxLeft = window.innerWidth - modal.offsetWidth;
+    const maxTop = window.innerHeight - modal.offsetHeight;
+
+    modal.style.left = Math.max(0, Math.min(e.clientX - offsetX, maxLeft)) + 'px';
+    modal.style.top  = Math.max(0, Math.min(e.clientY - offsetY, maxTop))  + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+name = "mymeshmap"
+compatibility_date = "2025-04-16"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mymeshmap-db"
+database_id = "99aaa462-9f09-4777-a440-6ad59732dddb"
+
