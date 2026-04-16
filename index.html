@@ -351,7 +351,7 @@
     </div>
     <hr class="modal-divider">
     <div class="row">
-      <span class="label">メッシュ線</span>
+      <span class="label">グリッド線</span>
       <button id="line-toggle" class="toggle-btn on">ON</button>
     </div>
     <div class="row">
@@ -363,7 +363,7 @@
       <span class="value" id="zoom-value">—</span>
     </div>
     <div class="row">
-      <span class="label">メッシュ表示</span>
+      <span class="label">グリッド表示</span>
       <span id="mesh-status" class="off">ズーム7以上で表示</span>
     </div>
     <div id="cap-warning">⚠ 表示上限(2000メッシュ)</div>
@@ -540,7 +540,7 @@ async function saveSettings() {
 }
 
 function applySettings() {
-  // メッシュ線
+  // グリッド線
   const lineBtn = document.getElementById('line-toggle');
   lineBtn.textContent = showLines ? 'ON' : 'OFF';
   lineBtn.className = 'toggle-btn ' + (showLines ? 'on' : 'off');
@@ -754,7 +754,7 @@ function updateModal(zoom) {
 
   const statusEl = document.getElementById('mesh-status');
   if (!showLines) {
-    statusEl.textContent = '線OFF';
+    statusEl.textContent = 'グリッドOFF';
     statusEl.className = 'off';
   } else if (z >= MESH_MIN_ZOOM) {
     statusEl.textContent = '表示中';
