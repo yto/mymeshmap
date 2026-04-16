@@ -7,9 +7,11 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2c3e50">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MeshMap">
+  <meta name="format-detection" content="telephone=no">
   <link href="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1069,6 +1071,7 @@ document.getElementById('um-sync-btn').addEventListener('click', async () => {
 
   // タッチ（iPhone/Android）
   header.addEventListener('touchstart', (e) => {
+    if (e.target.closest('button')) return; // ボタンはクリックに任せる
     const t = e.touches[0];
     startDrag(t.clientX, t.clientY);
     e.preventDefault();

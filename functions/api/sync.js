@@ -38,11 +38,11 @@ export async function onRequestPost({ request, env }) {
   await env.DB.prepare('DELETE FROM visits WHERE user_id = ?').bind(user_id).run();
 
   if (meshes.length > 0) {
-    const placeholders = meshes.map(() => '(?, ?)').join(', ');
-    const values = meshes.flatMap(code => [user_id, code]);
-    await env.DB.prepare(
-      `INSERT INTO visits (user_id, mesh_code) VALUES ${placeholders}`
-    ).bind(...values).run();
+    // D1 はバインドパラメータ上限が 100 のため、batch() で1行ずつ挿入する
+    const stmts = meshes.map(code =>
+      env.DB.prepare('INSERT INTO visits (user_id, mesh_code) VALUES (?, ?)').bind(user_id, code)
+    );
+    await env.DB.batch(stmts);
   }
 
   return Response.json(
