@@ -13,6 +13,8 @@
 - **デバイス間引き継ぎ** — QRコードまたはIDを使って別デバイスへ移行
 - **ID再発行** — IDが漏れた場合に新しいIDへデータごと移行（旧IDは無効化）
 - **設定の永続化** — 地図モードとメッシュ線のON/OFFもクラウドに保存
+- **手動同期** — ユーザー設定画面から任意のタイミングでクラウド同期を実行
+- **PWA対応** — ホーム画面への追加・オフライン時のフォールバックに対応
 
 ## 技術構成
 
@@ -22,6 +24,7 @@
 | 地図ライブラリ | [MapLibre GL JS](https://maplibre.org/) v5 |
 | 地図タイル | [国土地理院](https://maps.gsi.go.jp/development/ichiran.html)（標準地図 / 白地図） |
 | ホスティング | Cloudflare Pages |
+| PWA | Service Worker + Web App Manifest |
 | API | Cloudflare Pages Functions |
 | データベース | Cloudflare D1（SQLite） |
 | メッシュ規格 | JIS X 0410 第2次地域区分（6桁コード） |
@@ -31,6 +34,9 @@
 ```
 mymeshmap/
 ├── index.html              # メインアプリ（フロントエンド）
+├── manifest.json           # PWA マニフェスト
+├── sw.js                   # Service Worker（オフライン対応・CDNキャッシュ）
+├── favicon.svg             # ファビコン
 ├── functions/
 │   └── api/
 │       ├── sync.js         # 訪問済みメッシュの取得・保存
