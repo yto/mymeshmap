@@ -30,7 +30,7 @@
 
     #modal {
       position: fixed;
-      bottom: 20px;
+      bottom: 52px;
       right: 20px;
       width: 230px;
       background: rgba(255, 255, 255, 0.95);
@@ -424,7 +424,7 @@
 // ---- Constants ----
 const TILE_STD   = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
 const TILE_BLANK = 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png';
-const ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>';
+const ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a> | <a href="https://github.com/yto/mymeshmap" target="_blank">GitHub</a>';
 const MESH_MIN_ZOOM = 7;
 const MAX_MESHES = 2000;
 const LS_KEY = 'meshmap_visited';
@@ -600,7 +600,8 @@ const map = new maplibregl.Map({
   center: [136.0, 36.5],
   zoom: 5,
   minZoom: 4,
-  maxZoom: 18
+  maxZoom: 18,
+  attributionControl: { customAttribution: '<a href="https://github.com/yto/mymeshmap" target="_blank">GitHub</a>' }
 });
 
 // ---- Mesh coordinate math (JIS X 0410) ----
@@ -1037,35 +1038,46 @@ document.getElementById('um-sync-btn').addEventListener('click', async () => {
   let dragging = false;
   let offsetX = 0, offsetY = 0;
 
-  header.addEventListener('mousedown', (e) => {
+  function startDrag(clientX, clientY) {
     dragging = true;
-
-    // Convert from bottom/right anchoring to top/left before first drag
     const rect = modal.getBoundingClientRect();
     modal.style.bottom = 'auto';
     modal.style.right = 'auto';
     modal.style.left = rect.left + 'px';
     modal.style.top = rect.top + 'px';
+    offsetX = clientX - rect.left;
+    offsetY = clientY - rect.top;
+  }
 
-    offsetX = e.clientX - rect.left;
-    offsetY = e.clientY - rect.top;
-
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', (e) => {
+  function moveDrag(clientX, clientY) {
     if (!dragging) return;
-
     const maxLeft = window.innerWidth - modal.offsetWidth;
     const maxTop = window.innerHeight - modal.offsetHeight;
+    modal.style.left = Math.max(0, Math.min(clientX - offsetX, maxLeft)) + 'px';
+    modal.style.top  = Math.max(0, Math.min(clientY - offsetY, maxTop))  + 'px';
+  }
 
-    modal.style.left = Math.max(0, Math.min(e.clientX - offsetX, maxLeft)) + 'px';
-    modal.style.top  = Math.max(0, Math.min(e.clientY - offsetY, maxTop))  + 'px';
+  // マウス
+  header.addEventListener('mousedown', (e) => {
+    startDrag(e.clientX, e.clientY);
+    e.preventDefault();
   });
+  document.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+  document.addEventListener('mouseup', () => { dragging = false; });
 
-  document.addEventListener('mouseup', () => {
-    dragging = false;
-  });
+  // タッチ（iPhone/Android）
+  header.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    startDrag(t.clientX, t.clientY);
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    moveDrag(t.clientX, t.clientY);
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('touchend', () => { dragging = false; });
 })();
 
 // ---- Service Worker 登録 ----
