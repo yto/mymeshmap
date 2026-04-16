@@ -75,3 +75,6 @@ SW隅の座標:
 - DBに書き込むのはユーザーが最初にメッシュをタップ/設定を変更したときのみ（初回ロード時は書き込まない）。
 - MapLibre attribution は `attributionControl.customAttribution` で `MapLibre | 国土地理院 | GitHub` の3つを明示する（v5ではこの指定がデフォルトのMapLibreブランディングを上書きするため）。
 - Service Worker のキャッシュキー (`CACHE`) を変えるとき、合わせて `sw.js` のバージョン文字列を更新する。
+- **D1 のバインドパラメータ上限は100**。複数行 INSERT は `env.DB.batch()` で1行ずつ発行する（`VALUES (?,?),(?,?),...` でまとめると上限超えでクラッシュする）。
+- モーダルヘッダーのドラッグ実装では `touchstart` に `preventDefault()` を使っているが、ヘッダー内のボタンは除外すること（`e.target.closest('button')` で判定）。除外しないとボタンの `click` が発火しない。
+- スマホでUUIDが電話番号リンクになるのを防ぐため `<meta name="format-detection" content="telephone=no">` を設定済み。
