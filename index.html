@@ -1080,6 +1080,21 @@ document.getElementById('um-sync-btn').addEventListener('click', async () => {
   document.addEventListener('touchend', () => { dragging = false; });
 })();
 
+// ---- フォーカス復帰時の自動同期 ----
+// タブ切り替えやアプリ復帰時にクラウドから再読み込み（30秒以上経過した場合のみ）
+let lastSyncTime = Date.now();
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - lastSyncTime < 30_000) return;
+  await Promise.all([loadFromCloud(), loadSettings()]);
+  lastSyncTime = Date.now();
+});
+
+// 初回ロード時も記録
+document.addEventListener('DOMContentLoaded', () => {
+  lastSyncTime = Date.now();
+});
+
 // ---- Service Worker 登録 ----
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
