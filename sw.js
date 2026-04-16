@@ -1,24 +1,21 @@
 const CACHE = 'mymeshmap-v1';
 
-// アプリシェル：起動に必要なファイルだけキャッシュ
-const APP_SHELL = [
-  '/',
-  '/favicon.svg',
-  '/manifest.json',
+// CDNリソースはURLにバージョンが入っているため変更なし → キャッシュ優先
+const CDN_PREFETCH = [
   'https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
 ];
 
 self.addEventListener('install', e => {
+  // CDNリソースだけ事前キャッシュ（HTMLはネットワーク優先のためここではキャッシュしない）
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(APP_SHELL))
+    caches.open(CACHE).then(c => c.addAll(CDN_PREFETCH))
   );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
-  // 古いキャッシュを削除
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
@@ -36,8 +33,30 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // アプリシェル：キャッシュ優先、なければネットワーク
+  // CDNリソース（外部ホスト）: キャッシュ優先 → なければネットワーク取得してキャッシュ
+  if (url.hostname !== self.location.hostname) {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
+        });
+      })
+    );
+    return;
+  }
+
+  // 自サイトのリソース（HTML・SVG等）: ネットワーク優先
+  // → 最新コードを常に取得し、オフライン時のみキャッシュにフォールバック
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
