@@ -424,7 +424,7 @@
 // ---- Constants ----
 const TILE_STD   = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
 const TILE_BLANK = 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png';
-const ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a> | <a href="https://github.com/yto/mymeshmap" target="_blank">GitHub</a>';
+const ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>';
 const MESH_MIN_ZOOM = 7;
 const MAX_MESHES = 2000;
 const LS_KEY = 'meshmap_visited';
@@ -601,7 +601,9 @@ const map = new maplibregl.Map({
   zoom: 5,
   minZoom: 4,
   maxZoom: 18,
-  attributionControl: { customAttribution: '<a href="https://github.com/yto/mymeshmap" target="_blank">GitHub</a>' }
+  attributionControl: {
+    customAttribution: '<a href="https://maplibre.org/" target="_blank">MapLibre</a> | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a> | <a href="https://github.com/yto/mymeshmap" target="_blank">GitHub</a>'
+  }
 });
 
 // ---- Mesh coordinate math (JIS X 0410) ----
