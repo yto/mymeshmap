@@ -69,6 +69,30 @@ SW隅の座標:
 - `settings(user_id, key, value, updated_at)` — 複合PK
   - `key` の値: `map_mode`（"standard"/"grayscale"/"white"）、`show_lines`（true/false）
 
+## SNSシェア機能（shareMap）
+
+- `map` の初期化オプションに `preserveDrawingBuffer: true` が必要（ないと `toBlob()` が真っ黒になる）。
+- シェアボタン押下時のフロー:
+  1. `map.setMinZoom(1)` で一時的にズーム制限を解除
+  2. `#map` コンテナを CSS で `600×600px` の正方形に変更
+  3. `requestAnimationFrame` 後に `map.resize()` （レイアウト反映を待つ）
+  4. `fitBounds([[122.933, 20.417], [153.983, 45.550]], { padding: 24, animate: false })` で日本全域を収める
+  5. `map.once('idle')` でタイル読み込み完了を待つ
+  6. `map.getCanvas().toBlob()` でキャプチャ（canvas がすでに正方形なのでクロップ不要）
+  7. Canvas 2D で `MyMeshMap` + `© 国土地理院` バッジを右下に焼き込む
+  8. モバイル（iOS/Android）は `navigator.share()`、PC は `<a download>` でダウンロード
+  9. `finally` でコンテナ CSS・minZoom・地図モード・カメラ位置を復元
+- macOS の `navigator.share()` はシェアシートが開くがダウンロードオプションがないため、UA 判定でモバイルのみ使用する。
+
+## JAPAN_REGIONS（日本領域判定）
+
+`isInJapan()` 関数でメッシュ中心点が日本領域かどうかを判定している。以下の離島・北方領土が含まれていることを確認すること:
+
+- 沖ノ鳥島: `[20.2, 20.8, 135.8, 136.4]`
+- 南鳥島: `[24.1, 24.5, 153.7, 154.2]`
+- 択捉島: `[43.5, 45.6, 146.0, 149.2]`
+- 北海道（納沙布岬・国後含む）: 東端を `146.2°E` まで拡張済み
+
 ## 注意事項
 
 - `index.html` は1ファイル完結。外部JSファイルに分割しない。
@@ -78,3 +102,4 @@ SW隅の座標:
 - **D1 のバインドパラメータ上限は100**。複数行 INSERT は `env.DB.batch()` で1行ずつ発行する（`VALUES (?,?),(?,?),...` でまとめると上限超えでクラッシュする）。
 - モーダルヘッダーのドラッグ実装では `touchstart` に `preventDefault()` を使っているが、ヘッダー内のボタンは除外すること（`e.target.closest('button')` で判定）。除外しないとボタンの `click` が発火しない。
 - スマホでUUIDが電話番号リンクになるのを防ぐため `<meta name="format-detection" content="telephone=no">` を設定済み。
+- ユーザー設定モーダルはスマホ（≤480px）でフルスクリーン表示（CSS メディアクエリで制御）。
