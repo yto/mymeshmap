@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyMeshMap Japan</title>
+  <title>MyMeshMap</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2c3e50">
@@ -332,6 +332,23 @@
     .sync-loading { color: #1976d2; }
     .sync-ok      { color: #388e3c; }
     .sync-error   { color: #c62828; }
+
+    .share-btn {
+      width: 100%;
+      padding: 7px 4px;
+      border: none;
+      border-radius: 4px;
+      background: #e91e8c;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.12s;
+      margin-top: 2px;
+    }
+    .share-btn:hover:not(:disabled) { background: #c2185b; }
+    .share-btn:disabled { background: #ccc; cursor: default; }
   </style>
 </head>
 <body>
@@ -341,7 +358,7 @@
 <div id="modal">
   <div id="modal-header">
     <span class="drag-icon">&#x2807;</span>
-    <span style="flex:1">MyMeshMap Japan</span>
+    <span style="flex:1">MyMeshMap</span>
     <span id="sync-dot" class="sync-dot sync-idle" title="同期状態"></span>
     <button id="open-user-modal" title="ユーザー設定">👤</button>
   </div>
@@ -369,6 +386,8 @@
       <span id="mesh-status" class="off">ズーム7以上で表示</span>
     </div>
     <div id="cap-warning">⚠ 表示上限(2000メッシュ)</div>
+    <hr class="modal-divider" style="margin-top:6px">
+    <button id="share-btn" class="share-btn">📸 シェア</button>
   </div>
 </div>
 
@@ -599,6 +618,7 @@ const map = new maplibregl.Map({
       }
     ]
   },
+  preserveDrawingBuffer: true,
   center: [136.0, 36.5],
   zoom: 5,
   minZoom: 4,
@@ -664,13 +684,16 @@ function meshFeature(code) {
 // ---- Japan land area check (approximate bounding boxes per island group) ----
 const JAPAN_REGIONS = [
   [33.4, 41.6, 130.2, 142.0], // 本州（Honshu）
-  [41.3, 45.6, 139.2, 145.8], // 北海道（Hokkaido）
+  [41.3, 45.6, 139.2, 146.2], // 北海道 + 歯舞・色丹・国後（納沙布岬含む）
+  [43.5, 45.6, 146.0, 149.2], // 択捉島（Iturup）
   [32.8, 34.3, 132.0, 134.9], // 四国（Shikoku）
   [30.9, 34.0, 129.5, 132.3], // 九州（Kyushu）
   [31.2, 33.9, 128.6, 130.5], // 対馬・五島列島
   [24.0, 28.5, 122.8, 131.4], // 琉球・沖縄列島（Ryukyu/Okinawa）
   [30.0, 34.7, 140.7, 142.5], // 伊豆諸島（Izu Islands）
   [26.5, 27.2, 142.1, 142.6], // 小笠原諸島（Ogasawara）
+  [20.2, 20.8, 135.8, 136.4], // 沖ノ鳥島（Okinotorishima）
+  [24.1, 24.5, 153.7, 154.2], // 南鳥島（Minami-Torishima）
 ];
 
 // メッシュの中心点が日本の領域内かどうかを判定
@@ -1099,6 +1122,93 @@ document.addEventListener('visibilitychange', async () => {
 document.addEventListener('DOMContentLoaded', () => {
   lastSyncTime = Date.now();
 });
+
+// ---- Share ----
+async function shareMap() {
+  if (visitedSet.size === 0) {
+    alert('訪問済みメッシュがありません。');
+    return;
+  }
+
+  const btn = document.getElementById('share-btn');
+  btn.disabled = true;
+  btn.textContent = '準備中…';
+
+  const container = document.getElementById('map');
+  const prevCenter = map.getCenter();
+  const prevZoom = map.getZoom();
+  const prevMode = mapMode;
+  const origStyleCSSText = container.style.cssText;
+
+  try {
+    setMapMode('grayscale');
+
+    // canvasを正方形にリサイズ → fitBoundsで四端が確実に収まる
+    map.setMinZoom(1);
+    container.style.cssText = 'position:absolute;top:0;left:0;width:600px;height:600px;right:auto;bottom:auto;';
+    await new Promise(r => requestAnimationFrame(r)); // レイアウト反映を待つ
+    map.resize(); // RAF後に呼ぶことで600×600サイズを正しく取得
+
+    await new Promise(resolve => {
+      map.once('idle', resolve);
+      map.fitBounds([[122.933, 20.417], [153.983, 45.550]], { padding: 24, animate: false });
+    });
+
+    // canvas がすでに正方形なのでクロップ不要
+    const blob = await new Promise(resolve => map.getCanvas().toBlob(resolve, 'image/png'));
+
+    // attribution テキストを焼き込む（国土地理院利用規約に基づく出典明示）
+    const img = await createImageBitmap(blob);
+    const attrCanvas = document.createElement('canvas');
+    attrCanvas.width = img.width;
+    attrCanvas.height = img.height;
+    const ctx = attrCanvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const fontSize = Math.round(img.width * 0.022);
+    const pad = Math.round(fontSize * 0.5);
+    const lineGap = Math.round(fontSize * 0.35);
+    ctx.font = `bold ${Math.round(fontSize * 1.1)}px sans-serif`;
+    const appW = ctx.measureText('MyMeshMap').width;
+    ctx.font = `${fontSize}px sans-serif`;
+    const attrW = ctx.measureText('© 国土地理院').width;
+    const boxW = Math.max(appW, attrW) + pad * 2;
+    const boxH = Math.round(fontSize * 1.1) + lineGap + fontSize + pad * 2;
+    const boxX = img.width - boxW;
+    const boxY = img.height - boxH;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.fillStyle = '#333';
+    ctx.font = `bold ${Math.round(fontSize * 1.1)}px sans-serif`;
+    ctx.fillText('MyMeshMap', boxX + pad, boxY + pad + Math.round(fontSize * 1.1));
+    ctx.font = `${fontSize}px sans-serif`;
+    ctx.fillText('© 国土地理院', boxX + pad, boxY + pad + Math.round(fontSize * 1.1) + lineGap + fontSize);
+    const finalBlob = await new Promise(resolve => attrCanvas.toBlob(resolve, 'image/png'));
+    const file = new File([finalBlob], 'mymeshmap.png', { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: `訪問済みメッシュ ${visitedSet.size}個！ #MyMeshMap` });
+    } else {
+      const url = URL.createObjectURL(finalBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mymeshmap.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('シェアに失敗しました。');
+  } finally {
+    container.style.cssText = origStyleCSSText;
+    map.setMinZoom(4);
+    setMapMode(prevMode);
+    map.resize();
+    map.jumpTo({ center: prevCenter, zoom: prevZoom });
+    btn.disabled = false;
+    btn.textContent = '📸 シェア';
+  }
+}
+
+document.getElementById('share-btn').addEventListener('click', shareMap);
 
 // ---- Service Worker 登録 ----
 if ('serviceWorker' in navigator) {

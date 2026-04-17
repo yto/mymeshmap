@@ -1,6 +1,6 @@
 {
-  "name": "MyMeshMap Japan",
-  "short_name": "MeshMap",
+  "name": "MyMeshMap",
+  "short_name": "MyMeshMap",
   "description": "行ったことがある場所をメッシュ単位で記録するログツール",
   "start_url": "/",
   "display": "standalone",
