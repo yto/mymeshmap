@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>MyMeshMap</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.json">
@@ -33,8 +33,8 @@
 
     #modal {
       position: fixed;
-      bottom: 52px;
-      right: 20px;
+      bottom: calc(52px + env(safe-area-inset-bottom));
+      right: calc(20px + env(safe-area-inset-right));
       width: 230px;
       background: rgba(255, 255, 255, 0.95);
       border: 1px solid #ccc;
@@ -463,6 +463,9 @@ const MESH_MIN_ZOOM = 7;
 const MAX_MESHES = 2000;
 const LS_KEY = 'meshmap_visited';
 const LS_USER_ID = 'meshmap_user_id';
+const IS_CAPACITOR = typeof window.Capacitor !== 'undefined';
+const API_BASE = IS_CAPACITOR ? 'https://mymeshmap.pages.dev' : '';
+const WEB_BASE_URL = 'https://mymeshmap.pages.dev';
 
 // ---- User ID (UUID) ----
 function getOrCreateUserId() {
@@ -512,7 +515,7 @@ let saveTimer = null;
 async function loadFromCloud() {
   setSyncStatus('loading', '読み込み中…');
   try {
-    const res = await fetch(`/api/sync?user_id=${userId}`);
+    const res = await fetch(`${API_BASE}/api/sync?user_id=${userId}`);
     if (!res.ok) throw new Error(res.statusText);
     const { meshes } = await res.json();
     visitedSet = new Set(meshes);
@@ -528,7 +531,7 @@ async function loadFromCloud() {
 async function saveToCloud() {
   setSyncStatus('loading', '保存中…');
   try {
-    const res = await fetch('/api/sync', {
+    const res = await fetch(`${API_BASE}/api/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, meshes: [...visitedSet] }),
@@ -543,7 +546,7 @@ async function saveToCloud() {
 // ---- Settings sync ----
 async function loadSettings() {
   try {
-    const res = await fetch(`/api/settings?user_id=${userId}`);
+    const res = await fetch(`${API_BASE}/api/settings?user_id=${userId}`);
     if (!res.ok) throw new Error();
     const { settings } = await res.json();
     if (settings.map_mode  !== undefined) mapMode   = settings.map_mode;
@@ -559,12 +562,12 @@ async function saveSettings() {
   localStorage.setItem(LS_SETTINGS, JSON.stringify({ map_mode: mapMode, show_lines: showLines }));
   try {
     await Promise.all([
-      fetch('/api/settings', {
+      fetch(`${API_BASE}/api/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, key: 'map_mode', value: mapMode }),
       }),
-      fetch('/api/settings', {
+      fetch(`${API_BASE}/api/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, key: 'show_lines', value: showLines }),
@@ -936,7 +939,8 @@ document.getElementById('clear-btn').addEventListener('click', () => {
 let qrGenerated = false;
 
 function getShareUrl() {
-  return `${location.origin}${location.pathname}?id=${userId}`;
+  const base = IS_CAPACITOR ? WEB_BASE_URL : (location.origin + location.pathname);
+  return `${base}?id=${userId}`;
 }
 
 function openUserModal() {
@@ -1030,7 +1034,7 @@ document.getElementById('um-reissue-btn').addEventListener('click', async () => 
   btn.textContent = '処理中…';
 
   try {
-    const res = await fetch('/api/reissue', {
+    const res = await fetch(`${API_BASE}/api/reissue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ old_user_id: oldId, new_user_id: newId }),
@@ -1198,7 +1202,7 @@ async function shareMap() {
     const finalBlob = await new Promise(resolve => attrCanvas.toBlob(resolve, 'image/png'));
     const file = new File([finalBlob], 'mymeshmap.png', { type: 'image/png' });
 
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isMobile = IS_CAPACITOR || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], text: `訪問済みメッシュ ${visitedSet.size}個！ #MyMeshMap` });
     } else {
