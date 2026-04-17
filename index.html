@@ -1185,7 +1185,8 @@ async function shareMap() {
     const finalBlob = await new Promise(resolve => attrCanvas.toBlob(resolve, 'image/png'));
     const file = new File([finalBlob], 'mymeshmap.png', { type: 'image/png' });
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], text: `訪問済みメッシュ ${visitedSet.size}個！ #MyMeshMap` });
     } else {
       const url = URL.createObjectURL(finalBlob);
