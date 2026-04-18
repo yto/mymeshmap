@@ -360,8 +360,9 @@
       transition: background 0.12s;
       margin-top: 2px;
     }
-    .track-btn.active { background: #2e7d32; }
-    .track-btn:hover:not(.active) { background: #455a64; }
+    .track-btn.waiting { background: #e65100; }
+    .track-btn.active  { background: #2e7d32; }
+    .track-btn:hover:not(.active):not(.waiting) { background: #455a64; }
 
 .location-dot {
       width: 14px;
@@ -1198,8 +1199,8 @@ function startTracking() {
   }
   trackingActive = true;
   const btn = document.getElementById('track-btn');
-  btn.textContent = '📍 移動記録中 ●';
-  btn.classList.add('active');
+  btn.textContent = '⏳ 位置取得中…';
+  btn.classList.add('waiting');
 
   watchId = navigator.geolocation.watchPosition(
     onLocationUpdate,
@@ -1216,11 +1217,19 @@ function stopTracking() {
   map.getSource('current-mesh-source').setData({ type: 'FeatureCollection', features: [] });
   const btn = document.getElementById('track-btn');
   btn.textContent = '📍 移動記録 OFF';
-  btn.classList.remove('active');
+  btn.classList.remove('active', 'waiting');
 }
 
 function onLocationUpdate(pos) {
   const { latitude: lat, longitude: lng } = pos.coords;
+
+  // 初回測位成功で waiting → active に切り替え
+  const btn = document.getElementById('track-btn');
+  if (btn.classList.contains('waiting')) {
+    btn.classList.remove('waiting');
+    btn.classList.add('active');
+    btn.textContent = '🟢 移動記録中';
+  }
 
   // 現在地マーカー
   if (!locationMarker) {
