@@ -86,8 +86,8 @@
     }
 
     #mesh-status {
-      font-size: 11px;
-      padding: 2px 6px;
+      font-size: 10px;
+      padding: 2px 4px;
       border-radius: 3px;
       font-weight: normal;
     }
@@ -363,17 +363,7 @@
     .track-btn.active { background: #2e7d32; }
     .track-btn:hover:not(.active) { background: #455a64; }
 
-    #track-mesh-row {
-      display: none;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 4px;
-      font-size: 11px;
-      color: #666;
-    }
-    #track-mesh-code { font-weight: bold; color: #1565c0; font-size: 11px; }
-
-    .location-dot {
+.location-dot {
       width: 14px;
       height: 14px;
       border-radius: 50%;
@@ -425,28 +415,21 @@
     </div>
     <hr class="modal-divider">
     <div class="row">
-      <span class="label">グリッド線</span>
+      <span class="label">グリッド</span>
+      <span id="mesh-status" class="off">ズーム7以上で表示</span>
       <button id="line-toggle" class="toggle-btn on">ON</button>
-    </div>
-    <div class="row">
-      <span class="label">訪問済み</span>
-      <span class="value"><span id="visited-count">0</span> メッシュ</span>
     </div>
     <div class="row">
       <span class="label">ズーム</span>
       <span class="value" id="zoom-value">—</span>
     </div>
     <div class="row">
-      <span class="label">グリッド表示</span>
-      <span id="mesh-status" class="off">ズーム7以上で表示</span>
+      <span class="label">訪問済み</span>
+      <span class="value"><span id="visited-count">0</span> メッシュ</span>
     </div>
     <div id="cap-warning">⚠ 表示上限(2000メッシュ)</div>
     <hr class="modal-divider" style="margin-top:6px">
     <button id="track-btn" class="track-btn">📍 移動記録 OFF</button>
-    <div id="track-mesh-row">
-      <span>現在地</span>
-      <span id="track-mesh-code">—</span>
-    </div>
     <button id="share-btn" class="share-btn">📸 シェア</button>
   </div>
 </div>
@@ -1215,7 +1198,6 @@ function startTracking() {
   const btn = document.getElementById('track-btn');
   btn.textContent = '📍 移動記録中 ●';
   btn.classList.add('active');
-  document.getElementById('track-mesh-row').style.display = 'flex';
 
   watchId = navigator.geolocation.watchPosition(
     onLocationUpdate,
@@ -1233,8 +1215,6 @@ function stopTracking() {
   const btn = document.getElementById('track-btn');
   btn.textContent = '📍 移動記録 OFF';
   btn.classList.remove('active');
-  document.getElementById('track-mesh-row').style.display = 'none';
-  document.getElementById('track-mesh-code').textContent = '—';
 }
 
 function onLocationUpdate(pos) {
@@ -1258,8 +1238,7 @@ function onLocationUpdate(pos) {
   if (!isInJapan(centerLat, centerLng)) return;
 
   currentMeshCode = code;
-  document.getElementById('track-mesh-code').textContent = code;
-  map.getSource('current-mesh-source').setData({
+map.getSource('current-mesh-source').setData({
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [meshCodeToRing(code)] } }]
   });
