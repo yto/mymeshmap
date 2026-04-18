@@ -346,6 +346,48 @@
     .sync-ok      { color: #388e3c; }
     .sync-error   { color: #c62828; }
 
+    .track-btn {
+      width: 100%;
+      padding: 7px 4px;
+      border: none;
+      border-radius: 4px;
+      background: #546e7a;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.12s;
+      margin-top: 2px;
+    }
+    .track-btn.active { background: #2e7d32; }
+    .track-btn:hover:not(.active) { background: #455a64; }
+
+    #track-mesh-row {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+      font-size: 11px;
+      color: #666;
+    }
+    #track-mesh-code { font-weight: bold; color: #1565c0; font-size: 11px; }
+
+    .location-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #1976d2;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 0 rgba(25, 118, 210, 0.5);
+      animation: loc-pulse 2s infinite;
+    }
+    @keyframes loc-pulse {
+      0%   { box-shadow: 0 0 0 0   rgba(25, 118, 210, 0.5); }
+      70%  { box-shadow: 0 0 0 8px rgba(25, 118, 210, 0);   }
+      100% { box-shadow: 0 0 0 0   rgba(25, 118, 210, 0);   }
+    }
+
     .share-btn {
       width: 100%;
       padding: 7px 4px;
@@ -400,6 +442,11 @@
     </div>
     <div id="cap-warning">⚠ 表示上限(2000メッシュ)</div>
     <hr class="modal-divider" style="margin-top:6px">
+    <button id="track-btn" class="track-btn">📍 移動記録 OFF</button>
+    <div id="track-mesh-row">
+      <span>現在地</span>
+      <span id="track-mesh-code">—</span>
+    </div>
     <button id="share-btn" class="share-btn">📸 シェア</button>
   </div>
 </div>
@@ -490,6 +537,10 @@ const LS_SETTINGS = 'meshmap_settings';
 let visitedSet = new Set(JSON.parse(localStorage.getItem(LS_KEY) || '[]'));
 let showLines = true;
 let mapMode = 'standard';
+let trackingActive = false;
+let watchId = null;
+let currentMeshCode = null;
+let locationMarker = null;
 
 // localStorage から設定を先読み（マップ描画前にフラッシュしないよう）
 (function initSettingsFromLocalStorage() {
@@ -817,6 +868,20 @@ map.on('load', () => {
     data: { type: 'FeatureCollection', features: [] }
   });
 
+  map.addSource('current-mesh-source', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  });
+  map.addLayer({
+    id: 'current-mesh-fill',
+    type: 'fill',
+    source: 'current-mesh-source',
+    paint: {
+      'fill-color': 'rgba(25, 118, 210, 0.35)',
+      'fill-outline-color': 'rgba(25, 118, 210, 0.9)'
+    }
+  });
+
   // Fill layer: visited = red semi-transparent, unvisited = transparent
   map.addLayer({
     id: 'mesh-fill',
@@ -1138,6 +1203,77 @@ document.addEventListener('visibilitychange', async () => {
 // 初回ロード時も記録
 document.addEventListener('DOMContentLoaded', () => {
   lastSyncTime = Date.now();
+});
+
+// ---- 移動記録 ----
+function startTracking() {
+  if (!navigator.geolocation) {
+    alert('位置情報が使用できません。');
+    return;
+  }
+  trackingActive = true;
+  const btn = document.getElementById('track-btn');
+  btn.textContent = '📍 移動記録中 ●';
+  btn.classList.add('active');
+  document.getElementById('track-mesh-row').style.display = 'flex';
+
+  watchId = navigator.geolocation.watchPosition(
+    onLocationUpdate,
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 10000 }
+  );
+}
+
+function stopTracking() {
+  trackingActive = false;
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (locationMarker) { locationMarker.remove(); locationMarker = null; }
+  currentMeshCode = null;
+  map.getSource('current-mesh-source').setData({ type: 'FeatureCollection', features: [] });
+  const btn = document.getElementById('track-btn');
+  btn.textContent = '📍 移動記録 OFF';
+  btn.classList.remove('active');
+  document.getElementById('track-mesh-row').style.display = 'none';
+  document.getElementById('track-mesh-code').textContent = '—';
+}
+
+function onLocationUpdate(pos) {
+  const { latitude: lat, longitude: lng } = pos.coords;
+
+  // 現在地マーカー
+  if (!locationMarker) {
+    const el = document.createElement('div');
+    el.className = 'location-dot';
+    locationMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+  } else {
+    locationMarker.setLngLat([lng, lat]);
+  }
+
+  // 現在地メッシュ
+  const code = latLngToMeshCode(lat, lng);
+  const p = parseInt(code.slice(0, 2), 10), u = parseInt(code.slice(2, 4), 10);
+  const r = parseInt(code[4], 10),         c = parseInt(code[5], 10);
+  const centerLat = p / 1.5 + r / 12 + 1 / 24;
+  const centerLng = (u + 100) + c * 0.125 + 0.0625;
+  if (!isInJapan(centerLat, centerLng)) return;
+
+  currentMeshCode = code;
+  document.getElementById('track-mesh-code').textContent = code;
+  map.getSource('current-mesh-source').setData({
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [meshCodeToRing(code)] } }]
+  });
+
+  if (!visitedSet.has(code)) {
+    visitedSet.add(code);
+    scheduleSave();
+    updateMeshes();
+    updateModal();
+  }
+}
+
+document.getElementById('track-btn').addEventListener('click', () => {
+  trackingActive ? stopTracking() : startTracking();
 });
 
 // ---- Share ----
