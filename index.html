@@ -63,6 +63,8 @@
       letter-spacing: -1px;
     }
 
+    #modal.collapsed #modal-body { display: none; }
+
     #modal-body {
       padding: 10px 12px;
       font-size: 13px;
@@ -1132,6 +1134,29 @@ document.getElementById('um-sync-btn').addEventListener('click', async () => {
   await Promise.all([loadFromCloud(), loadSettings()]);
   btn.disabled = false;
 });
+
+// ---- Collapsible modal ----
+(function initCollapsible() {
+  const header = document.getElementById('modal-header');
+  const modal  = document.getElementById('modal');
+  let lastTap = 0;
+
+  function toggleCollapse() {
+    modal.classList.toggle('collapsed');
+  }
+
+  header.addEventListener('dblclick', (e) => {
+    if (e.target.closest('button')) return;
+    toggleCollapse();
+  });
+
+  header.addEventListener('touchend', (e) => {
+    if (e.target.closest('button')) return;
+    const now = Date.now();
+    if (now - lastTap < 300) { toggleCollapse(); lastTap = 0; }
+    else lastTap = now;
+  });
+})();
 
 // ---- Draggable modal ----
 (function initDraggable() {
