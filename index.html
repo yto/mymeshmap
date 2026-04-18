@@ -316,7 +316,14 @@
         max-height: 100dvh;
         border-radius: 0;
       }
-      #user-modal-header { border-radius: 0; }
+      #user-modal-header {
+        border-radius: 0;
+        padding-top: calc(12px + env(safe-area-inset-top));
+        padding-right: calc(16px + env(safe-area-inset-right));
+      }
+      #user-modal-body {
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      }
     }
 
     #um-import-input {
