@@ -40,8 +40,8 @@ wrangler d1 execute mymeshmap-db --remote --file=schema.sql
 
 ## index.html の主要構造
 
-- **定数**: `LS_KEY`（localStorage キー）、`API_BASE`、`ATTRIBUTION`
-- **状態**: `visitedSet`（訪問済みコードのSet）、`userId`、`mapMode`、`showLines`
+- **定数**: `LS_KEY`（localStorage キー）、`API_BASE`（Capacitor時は絶対URL）、`WEB_BASE_URL`（QRコード用URL）、`IS_CAPACITOR`（Capacitor環境判定）、`ATTRIBUTION`
+- **状態**: `visitedSet`（訪問済みコードのSet）、`userId`、`mapMode`、`showLines`、`trackingActive`、`watchId`、`currentMeshCode`、`locationMarker`
 - **初期化フロー**:
   1. ページロード直後にlocalStorageからID・設定を読み込む（フラッシュ防止）
   2. `map.on('load')` でクラウドからデータ・設定を取得して適用
@@ -69,6 +69,34 @@ SW隅の座標:
 - `settings(user_id, key, value, updated_at)` — 複合PK
   - `key` の値: `map_mode`（"standard"/"grayscale"/"white"）、`show_lines`（true/false）
 
+## 移動記録機能（trackingActive）
+
+- `startTracking()` → `navigator.geolocation.watchPosition` で位置追跡開始
+- `onLocationUpdate(pos)` のフロー:
+  1. `latLngToMeshCode()` で現在地をメッシュコードに変換
+  2. `isInJapan()` で日本領域外なら無視
+  3. `locationMarker`（青いパルスアニメ）を `maplibregl.Marker` で表示・更新
+  4. `current-mesh-source` に現在地メッシュのポリゴンをセット → 青くハイライト
+  5. 未訪問のメッシュなら `visitedSet` に追加して `scheduleSave()`
+- ボタン状態: OFF（スレートブルー）→ 測位待ち（オレンジ `⏳ 位置取得中…`）→ 測位成功（グリーン `🟢 移動記録中`）
+- Web/PWA では前景のみ動作。Capacitor iOS では今後バックグラウンド対応予定。
+
+## Capacitor対応（iOS アプリ化）
+
+- `IS_CAPACITOR = typeof window.Capacitor !== 'undefined'` で環境を判定
+- `API_BASE`: Capacitor環境では `https://mymeshmap.pages.dev`、Web環境では空文字（相対パス）
+- `WEB_BASE_URL`: QRコードや「URLをコピー」で使うURL。Capacitor環境では `location.origin` が `capacitor://localhost` になるためハードコード
+- シェアのモバイル判定: `IS_CAPACITOR || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)`
+- CORS: 全APIに `Access-Control-Allow-Origin: *` 設定済みのため Cloudflare 側の変更不要
+
+## iOS Safe Area 対応
+
+- `<meta name="viewport">` に `viewport-fit=cover` を追加済み
+- `#modal`: `bottom: calc(52px + env(safe-area-inset-bottom))`、`right: calc(20px + env(safe-area-inset-right))`
+- `#user-modal-header`（スマホ≤480px）: `padding-top: calc(12px + env(safe-area-inset-top))`、`padding-right: calc(16px + env(safe-area-inset-right))`
+- `#user-modal-body`（スマホ≤480px）: `padding-bottom: calc(16px + env(safe-area-inset-bottom))`
+- Safe Areaのないデバイスでは値が `0` になるため非iOS環境のデザインは変わらない
+
 ## SNSシェア機能（shareMap）
 
 - `map` の初期化オプションに `preserveDrawingBuffer: true` が必要（ないと `toBlob()` が真っ黒になる）。
@@ -93,6 +121,12 @@ SW隅の座標:
 - 択捉島: `[43.5, 45.6, 146.0, 149.2]`
 - 北海道（納沙布岬・国後含む）: 東端を `146.2°E` まで拡張済み
 
+## メインモーダルの折りたたみ
+
+- `#modal.collapsed` クラスで `#modal-body` を非表示、`#modal-header` の下角を角丸（`border-radius: 8px`）に変更
+- ヘッダーのダブルクリック（`dblclick`）またはダブルタップ（300ms以内の2回 `touchend`）でトグル
+- ドラッグ・ボタンとの干渉を避けるため `e.target.closest('button')` で除外
+
 ## 注意事項
 
 - `index.html` は1ファイル完結。外部JSファイルに分割しない。
@@ -103,3 +137,4 @@ SW隅の座標:
 - モーダルヘッダーのドラッグ実装では `touchstart` に `preventDefault()` を使っているが、ヘッダー内のボタンは除外すること（`e.target.closest('button')` で判定）。除外しないとボタンの `click` が発火しない。
 - スマホでUUIDが電話番号リンクになるのを防ぐため `<meta name="format-detection" content="telephone=no">` を設定済み。
 - ユーザー設定モーダルはスマホ（≤480px）でフルスクリーン表示（CSS メディアクエリで制御）。
+- `API_BASE` を変更する場合は `WEB_BASE_URL` も合わせて更新すること（現在どちらも `https://mymeshmap.pages.dev`）。
