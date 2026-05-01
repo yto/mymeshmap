@@ -745,23 +745,35 @@ function meshFeature(code) {
 }
 
 // ---- Japan land area check (approximate bounding boxes per island group) ----
-const JAPAN_REGIONS = [
+// 本州・北海道・四国・九州：ボックス内のみ判定
+const MAIN_REGIONS = [
   [33.4, 41.6, 130.2, 142.0], // 本州（Honshu）
   [41.3, 45.6, 139.2, 146.2], // 北海道 + 歯舞・色丹・国後（納沙布岬含む）
   [43.5, 45.6, 146.0, 149.2], // 択捉島（Iturup）
-  [32.8, 34.3, 132.0, 134.9], // 四国（Shikoku）
+  [32.7, 34.3, 132.0, 134.9], // 四国（Shikoku）
   [30.9, 34.0, 129.5, 132.3], // 九州（Kyushu）
+];
+
+// 諸島：ボックスの上下左右斜め1メッシュ分も許容
+const ISLAND_REGIONS = [
   [31.2, 33.9, 128.6, 130.5], // 対馬・五島列島
+  [29.0, 30.9, 129.0, 131.0], // 種子島・屋久島・トカラ列島
   [24.0, 28.5, 122.8, 131.4], // 琉球・沖縄列島（Ryukyu/Okinawa）
   [30.0, 34.7, 140.7, 142.5], // 伊豆諸島（Izu Islands）
-  [26.5, 27.2, 142.1, 142.6], // 小笠原諸島（Ogasawara）
+  [26.5, 27.7, 142.1, 142.6], // 小笠原諸島（聟島含む）
   [20.2, 20.8, 135.8, 136.4], // 沖ノ鳥島（Okinotorishima）
   [24.1, 24.5, 153.7, 154.2], // 南鳥島（Minami-Torishima）
 ];
 
+const MESH_LAT = 1 / 12;
+const MESH_LNG = 1 / 8;
+
 // メッシュの中心点が日本の領域内かどうかを判定
 function isInJapan(lat, lng) {
-  return JAPAN_REGIONS.some(([s, n, w, e]) => lat >= s && lat <= n && lng >= w && lng <= e);
+  if (MAIN_REGIONS.some(([s, n, w, e]) => lat >= s && lat <= n && lng >= w && lng <= e)) return true;
+  return ISLAND_REGIONS.some(([s, n, w, e]) =>
+    lat >= s - MESH_LAT && lat <= n + MESH_LAT && lng >= w - MESH_LNG && lng <= e + MESH_LNG
+  );
 }
 
 // ---- Mesh generation from viewport ----
